@@ -1,8 +1,8 @@
 Function: qfminim
 Section: linear_algebra
 C-Name: qfminim0
-Prototype: GDGDGD0,L,p
-Help: qfminim(x,{b},{m},{flag=0}): x being a square and symmetric
+Prototype: GDGDG,D0,L,D0,L,p
+Help: qfminim(x,{b},{m},{flag=0},{filter=0}): x being a square and symmetric
  matrix representing a positive definite quadratic form, this function
  deals with the vectors of x whose norm is less than or equal to b,
  enumerated using the Fincke-Pohst algorithm, storing at most m vectors (no
