@@ -1,60 +1,19 @@
 #include <pari/pari.h>
 #include <assert.h>
 
-/*
-GP;install("extgcd", "GG&&", "gcdex", "./libextgcd.so");
-*/
-
-/* return d = gcd(a,b), sets u, v such that au + bv = gcd(a,b) */
-GEN
-extgcd(GEN A, GEN B, GEN *U, GEN *V)
-{
-  pari_sp av = avma;
-  GEN ux = gen_1, vx = gen_0, a = A, b = B;
-
-  if (typ(a) != t_INT) pari_err_TYPE("extgcd",a);
-  if (typ(b) != t_INT) pari_err_TYPE("extgcd",b);
-  if (signe(a) < 0) { a = negi(a); ux = negi(ux); }
-  while (!gequal0(b))
-  {
-    GEN r, q = dvmdii(a, b, &r), v = vx;
-
-    vx = subii(ux, mulii(q, vx));
-    ux = v; a = b; b = r;
-  }
-  *U = ux;
-  *V = diviiexact( subii(a, mulii(A,ux)), B );
-  gerepileall(av, 3, &a, U, V); return a;
-}
-
-void
-cp_vec_to_matrix(GEN** M, GEN x, long idx)
-{
-  assert(M!=NULL && *M!=NULL);
-  assert(lg(*M) > 0); 
-  assert(lg(x) == lg((*M)[1])); // length of x = length of M's column vectors
-  
-  long n = lg(x), i; // i = row idx, idx = col index
-  for (i = 0; i < n; i++)
-    (*M)[idx][i] = x[i]; 
-}
-
 long
-simple_filter(GEN** M, GEN* args)
+simple_filter(GEN M, GEN args, long M_size)
 {
-  long M_size = lg(*M);
-  long filtered_size = 0;
-  long i = 0; 
-  
-  for (i = 0; i < M_size; i++)
+  long filtered_size = 0; // 1 indexing
+  long i = 1;
+  long modulus = itos(gel(args,2)); 
+
+  for (i = 1; i <= M_size; i++)
   {
-    if ((*M)[i][1] % 2) // check the first value in i'th column is even
-    {
-      cp_vec_to_matrix(M, (*M)[i], filtered_size); 
-      filtered_size++;
-    }
+    if (itos(gcoeff(M,1,i)) % modulus == 0)
+      gel(M,++filtered_size) = leafcopy(gel(M,i)); // filtered_size <= i
   }
-  
+
   return filtered_size;
 }
 
@@ -62,72 +21,65 @@ simple_filter(GEN** M, GEN* args)
   M is a list of vectors we want to filter
   args is a list of GEN elements. Here we expect a factor k, list of primes, and a bound M
 */
-/* long */
-/* filter(GEN** M, GEN* args) */
-/* { */
-/*   pari_sp av = avma; // need to unwind stack by myself */
-/*   long M_size = lg(*M); */
-/*   if (M_size < 1) return M_size; */
+long
+linear_form_in_log_filter(GEN M, GEN args, long M_size)
+{
+  GEN x = gel(M,1); // first vector in M
+  long x_length = lg(x)-1; // effective length
 
-/*   GEN x = (*M)[1];  */
-/*   long x_length = lg(x); */
+  // first arg is reserved for file name
+  // ignore real values for now - later change M to a real matrix
+  GEN k = gel(args,2); // factor (t_REAL) 
+  GEN P = gel(args,3); // primes (t_INT)
+  GEN C = gel(args,4); // bound (t_REAL)
 
-/*   GEN k = args[1]; // factor (t_REAL) */
-/*   GEN* P = (GEN*)args[2]; // primes (t_INT ?)  */
-/*   GEN C = args[3]; // bound (t_REAL) */
+  long i = 1, j = 1; 
+  long filtered_size = 0;
+  GEN b, v;
+  v = zerocol(x_length+1);
 
-/*   long i = 0, j = 0, l = 0, k = 0; // j represents position in return list */
-/*   GEN b = cgetg(x_length+1, t_VECSMALL); // initialize to zero (length = n + 1) */
-/*   GEN v = cgetg(x_length+1, t_VECSMALL); // initialize to zero */
-/*   for (i = 0; i < x_length+1; i++) */
-/*     v[i+1] = 0; // one indexing */
+  // take log of primes in P
+  /* expect this to be true assert(lg(P) == lg(x));  */
+  for (i = 1; i <= x_length; i++)
+      gel(P,i) = glog(gel(P,i),DEFAULTPREC); 
 
-/*   while (l < M_size) */
-/*   { */
-/*     x = (*M)[l];  */
-/*     while (i < x_length) // zero or one indexed? assuming one */
-/*     { */
-/*       for (k = 0; k < x_length+1; k++) */
-/*         b[k+1] = 0; */
+  for (i = 1; i <= M_size; i++)
+    {
+      x = gel(M,i); 
+      for (j = 1; j <= x_length; j++) 
+          gel(v,j) = gel(x,j);
 
-/*       // ----------------THESE NEED TO BE REAL NUMBERS----------------------- */
-/*       // USE MATRIX AND VECTOR MULTIPLICATION FUNCTIONS */
+      b = gen_0; 
+      for (j = 1; j <= x_length; j++)
+        b = addii(b, mulii(gel(x,j),gel(P,j)));
+      gel(v,x_length+1) = mulii(k,b); 
 
-// ASSUME RATIONAL OPERATIONS, since that's what happens in minim0_dolll
+      GEN norm = gnorml2(v);
+      // keep vector x if norm <= C
+      if (gcmp(norm,C) != 1)
+        gel(M,++filtered_size) = leafcopy(x); 
+    }
+  
+  return filtered_size;
+}
 
-      
-/*       b[i+1] = 1; */
-/*       // b[x_length+1] = k * log(P[i]); */
-/*       mulrrz(k, glog(P[i],28), &b[x_length+1]); // glog(t_REAL,prec), where prec=28 is the default */
-/*       // v = v + x[i] * b; */
-/*       for (k = 0; k < x_length+1; k++) */
-/*         v[k+1] = v[k+1] + x[i] * b[k+1];  */
-/*       addrrz(v[k+1]  */
-/*       i++; */
-/*     } */
-
-/*     GEN norm = norm(v);  */
-/*     if (norm < C) */
-/*     { */
-/*       M[j] = x; */
-/*       j++; */
-/*     } */
-/*     l++;  */
-/*   } */
-    
-/*   avma = av; // unwind stack */
-/*   return filtered_size;  */
-/* } */
+void apply_simple_filter_on_leech_lattice()
+{
+  pari_printf("test simple filter on leech lattice: save results whose first field is divisible by 3\n"); 
+  GEN x = gp_read_file("leech_lattice");
+  GEN filename = gp_read_str("simple_filter_on_leech_lattice_result"); 
+  GEN args = mkvec2(filename, stoi(3)); 
+  GEN d = qfminim0(x,NULL,NULL,3,(long)&simple_filter,args,DEFAULTPREC);
+  pari_printf("%Ps\n", d);
+}
 
 int
 main()
 {
-  GEN d; 
-  pari_init(1000000,2);
-  // set flag to 3 = output to file, apply simple filter
-  /* d = qfminim0(matid(3),NULL,NULL,3,(long)simple_filter,NULL,28); */
-  d = qfminim0(matid(3),NULL,NULL,0,0,NULL,28);
-  pari_printf("%Ps\n", d);
+  pari_init(8000000,2);
+
+  apply_simple_filter_on_leech_lattice(); 
+  
   pari_close();
   return 0;
 }
