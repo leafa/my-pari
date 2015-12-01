@@ -137,7 +137,8 @@ enum {
   min_PERF      = 2,
   min_VECSMALL  = 3,
   min_VECSMALL2 = 4,
-  min_TOFILE    = 5
+  min_FILTER    = 5, 
+  min_TOFILE    = 6
 };
 /* for fincke_pohst() */
 typedef struct FP_chk_fun {

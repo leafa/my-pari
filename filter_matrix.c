@@ -6,11 +6,10 @@ simple_filter(GEN M, GEN args, long M_size)
 {
   long filtered_size = 0; // 1 indexing
   long i = 1;
-  long modulus = itos(gel(args,2)); 
 
   for (i = 1; i <= M_size; i++)
   {
-    if (itos(gcoeff(M,1,i)) % modulus == 0)
+    if (itos(gcoeff(M,2,i)) % 5 == 1)
       gel(M,++filtered_size) = leafcopy(gel(M,i)); // filtered_size <= i
   }
 
@@ -78,7 +77,11 @@ main()
 {
   pari_init(8000000,2);
 
-  apply_simple_filter_on_leech_lattice(); 
+  GEN x = gp_read_file("simple_input");
+  GEN filename = gp_read_str("simple_filter_on_simple_lattice_result"); 
+  GEN args = mkvec2(filename, stoi(3)); 
+  GEN d = qfminim0(x,stoi(5),NULL,3,(long)&simple_filter,args,DEFAULTPREC);
+  pari_printf("%Ps\n", d);
   
   pari_close();
   return 0;
