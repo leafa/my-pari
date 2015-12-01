@@ -1583,6 +1583,53 @@ minim0_dolll_filter(GEN a, GEN BORNE, GEN STOCKMAX, long flag, long dolll, long 
         if (s<=maxrank) gel(L,s) = leafcopy(x);
         break;
 
+      case min_FILTER: 
+      {
+        // build M
+        if (M_idx == 0)
+        {
+          M = zeromat(n, M_size);
+          av_FILTER = avma; 
+        }
+
+        // filter and write to file buffer in chunk
+        if (M_idx > M_size) 
+        {
+          if (dolll)
+            for (M_idx = 1; M_idx <= M_size; M_idx++)
+              gel(M,M_idx) = ZM_zc_mul(u,x);
+          
+          long filtered_size = ((filter_t)filter)(M, args, M_size);
+          
+          // on the very top of stack
+          GEN filtered_vecs = gcopy_lg(M, filtered_size);
+          // garbage collect - will not affect filtered_vecs
+          avma = av_FILTER; 
+
+          if (s+filtered_size > maxrank && stockall) // extend L
+          {
+            // L can be at most M_size longer to avoid overlapping
+            // DOESNT WORK :(
+            long maxranknew = maxrank + M_size; 
+            GEN Lnew = new_chunk(1 + maxranknew);
+            for (i=1; i<=maxrank; i++) Lnew[i] = L[i];
+            L = Lnew; maxrank = maxranknew;
+            av_FILTER = avma; 
+          }
+          
+          for(i = 1; i <= filtered_size; i++) 
+            gel(L,++s) = leafcopy(gel(filtered_vecs,i));
+
+          // rebuild M
+          M = zeromat(n, M_size);
+          M_idx = 0;
+        }
+
+        // populate M
+        gel(M,++M_idx) = x; 
+      }
+        break;        
+
       case min_TOFILE:
       {
         // build M
