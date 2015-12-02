@@ -1140,7 +1140,9 @@ minim0_dolll(GEN a, GEN BORNE, GEN STOCKMAX, long flag, long dolll, long filter,
   int stockall = 0;
   struct qfvec qv;
   // for filtering 
-  typedef GEN (*filter_t)(GEN, GEN); 
+  typedef GEN (*filter_t)(GEN, GEN);
+
+  pari_printf("minim0_dolll reporting in\n"); 
   
   if (!BORNE)
     sBORNE = 0;
@@ -1242,6 +1244,7 @@ minim0_dolll(GEN a, GEN BORNE, GEN STOCKMAX, long flag, long dolll, long filter,
       break;
   }
 
+  pari_printf("minim0_dolll starting to brute force small vectors\n"); 
   s = 0; av1 = avma;
   k = n; y[n] = z[n] = 0;
   x[n] = (long)sqrt(BOUND/v[n]);
@@ -1305,12 +1308,15 @@ minim0_dolll(GEN a, GEN BORNE, GEN STOCKMAX, long flag, long dolll, long filter,
         break;
 
       case min_FILTER:
+        /* pari_printf("minim0_dolll applying filter\n");  */
         if (s > maxrank && stockall) /* overflow */
         {
           long maxranknew = maxrank << 1;
           GEN Lnew = new_chunk(1 + maxranknew);
           for (i=1; i<=maxrank; i++) Lnew[i] = L[i];
-          L = Lnew; maxrank = maxranknew; 
+          L = Lnew; maxrank = maxranknew;
+          // update L size if s > maxrank + M_size
+          // move M to top
         }
         if (s<=maxrank)
         {
@@ -1320,7 +1326,7 @@ minim0_dolll(GEN a, GEN BORNE, GEN STOCKMAX, long flag, long dolll, long filter,
           if (dolll) filtered_vec = ZM_zc_mul(u,x);
           else filtered_vec = leafcopy(x);
           filtered_vec = ((filter_t)filter)(filtered_vec, args);
-          if (filtered_vec != NULL) gel(L,s) = filtered_vec;
+          if (filtered_vec != NULL) gel(L,s) = filtered_vec; 
           else {  avma = av_filter; s--; }
         }
         break; 
@@ -1337,7 +1343,7 @@ minim0_dolll(GEN a, GEN BORNE, GEN STOCKMAX, long flag, long dolll, long filter,
         if (filter != 0) tofile_vec = ((filter_t)filter)(tofile_vec, args);
         
         if (tofile_vec == NULL) s--; 
-        else pari_printf("%Ps\n", x);
+        else pari_printf("%Ps\n", tofile_vec);
 
         avma = av_tofile; 
       }
@@ -1403,7 +1409,7 @@ minim0_dolll(GEN a, GEN BORNE, GEN STOCKMAX, long flag, long dolll, long filter,
     case min_TOFILE:
       // change output stream back to stdout
       switchout(NULL);
-      pari_free(filename);
+      /* pari_free(filename); */
       r = (maxnorm >= 0) ? roundr(dbltor(maxnorm)): stoi(sBORNE);
       return gerepilecopy(av, mkvec2(stoi(s<<1), r));
   }

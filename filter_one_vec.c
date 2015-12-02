@@ -5,18 +5,21 @@
 GEN
 silly_filter(GEN v, GEN args)
 {
-  if (itos(gel(v,1)) != 0)
-    v = NULL; // if v doesn't satisfy the filter criteria, set it to NULL
-  return v; 
+  /* pari_printf("%Ps\n", v);  */
+  if (itos(gel(v,1)) == 0)
+    return v;
+  else
+    return NULL; 
 }
 
 GEN
 simple_filter(GEN v, GEN args) 
 {
-  long modulus = itos(gel(args,1)); 
-  if (itos(gel(v,1)) % modulus != 1)
-    v = NULL; // if v doesn't satisfy the filter criteria, set it to NULL
-  return v; 
+  long modulus = itos(gel(args,1));
+  if (itos(gel(v,1)) % modulus == 0)
+    return v;
+  else
+    return NULL; 
 }
 
 /*
@@ -65,12 +68,15 @@ linear_form_in_log_filter(GEN M, GEN args, long M_size)
   return filtered_size;
 }
 
-void apply_filter_helper(long fptr, const char* in_file)
+void apply_filter_helper(long fptr, const char* in_file, const char* to_file)
 {
   GEN x = gp_read_file(in_file);
-  GEN args = mkvec(stoi(3));
+  GEN args = mkvec(stoi(2));
+  GEN filename = NULL;
+  long flag = 3; 
+  if (to_file != NULL) { flag = 4; filename = gp_read_str(to_file); }
   // qfminim(sym_matrix, norm_bound, n_ret_vecs, flag, fptr, args, filename, prec)
-  GEN d = qfminim0(x,stoi(10),NULL,3,fptr,args,NULL,DEFAULTPREC);
+  GEN d = qfminim0(x,stoi(10),NULL,flag,fptr,args,filename,DEFAULTPREC);
   pari_printf("apply filter result:\n%Ps\n", d);
 }
 
@@ -79,11 +85,16 @@ main()
 {
   pari_init(8000000,2);
 
-  pari_printf("test simple filter on simple_input\n"); 
-  apply_filter_helper((long)&simple_filter, "simple_input");
+  /* pari_printf("test simple filter on simple_input\n");  */
+  /* apply_filter_helper((long)&simple_filter, "simple_input", NULL); */
 
-  pari_printf("test silly filter on leech_lattice\n"); 
-  apply_filter_helper((long)&silly_filter, "leech_lattice"); 
+  /* pari_printf("test silly filter on leech_lattice to file\n");  */
+  /* apply_filter_helper((long)&silly_filter, */
+  /*                     "leech_lattice", */
+  /*                     "silly_filter_on_leech_lattice");  */
+
+  pari_printf("test silly filter on leech_lattice\n");
+  apply_filter_helper((long)&silly_filter, "leech_lattice", NULL);
   
   pari_close();
   return 0;
