@@ -2,16 +2,30 @@
 #include <assert.h>
 
 long
+silly_filter(GEN M, GEN args, long M_size)
+{
+  long filtered_size = 0; // 1 indexing
+  long i;
+  for (i = 1; i <= M_size; i++)
+  {
+    if (itos(gcoeff(M,1,i)) == 0) // save vec if first field is 0
+      gel(M,++filtered_size) = gcopy(gel(M,i)); // filtered_size <= i
+  }
+
+  return filtered_size;
+}
+
+long
 simple_filter(GEN M, GEN args, long M_size)
 {
   long filtered_size = 0; // 1 indexing
   long i = 1;
-  long modulus = itos(gel(args,2)); 
+  long modulus = itos(gel(args,1)); 
 
   for (i = 1; i <= M_size; i++)
   {
     if (itos(gcoeff(M,1,i)) % modulus == 0)
-      gel(M,++filtered_size) = leafcopy(gel(M,i)); // filtered_size <= i
+      gel(M,++filtered_size) = gcopy(gel(M,i)); // filtered_size <= i
   }
 
   return filtered_size;
@@ -57,20 +71,28 @@ linear_form_in_log_filter(GEN M, GEN args, long M_size)
       GEN norm = gnorml2(v);
       // keep vector x if norm <= C
       if (gcmp(norm,C) != 1)
-        gel(M,++filtered_size) = leafcopy(x); 
+        gel(M,++filtered_size) = gcopy(x); 
     }
   
   return filtered_size;
 }
 
-void apply_simple_filter_on_leech_lattice()
+void call_qfminim(GEN x, GEN maxnorm, GEN stockmax, long flag, long fptr, GEN args, GEN fn, const char* msg)
 {
-  pari_printf("test simple filter on leech lattice: save results whose first field is divisible by 3\n"); 
-  GEN x = gp_read_file("leech_lattice");
-  GEN filename = gp_read_str("simple_filter_on_leech_lattice_result"); 
-  GEN args = mkvec2(filename, stoi(3)); 
-  GEN d = qfminim0(x,NULL,NULL,3,(long)&simple_filter,args,DEFAULTPREC);
+  pari_printf("******************************************\n");
+  GEN d = qfminim0(x,maxnorm,stockmax,flag,fptr,args,fn,DEFAULTPREC);
+  if (msg != NULL)
+    pari_printf("%s\n", msg);
+  pari_printf("qfminim result: \n"); 
   pari_printf("%Ps\n", d);
+  if (fn == NULL)
+  {
+    GEN L = gel(d,3); 
+    long i;
+    for (i=1; i < lg(L); i++)
+      pari_printf("L[%ld] = %Ps\n", i, gel(L,i));
+  }
+  pari_printf("******************************************\n"); 
 }
 
 int
@@ -78,7 +100,56 @@ main()
 {
   pari_init(8000000,2);
 
-  apply_simple_filter_on_leech_lattice(); 
+  GEN x, maxnorm, stockmax, args, fn; 
+  long flag, fptr;
+  
+  x = gp_read_file("simple_input");
+  maxnorm = stockmax = args = fn = NULL;
+  flag = fptr = 0; 
+  call_qfminim(x, maxnorm, stockmax, flag, fptr, args, fn, "default qfminim on simple_input");
+
+  x = gp_read_file("simple_input");
+  maxnorm = stoi(10); 
+  stockmax = args = fn = NULL;
+  flag = fptr = 0; 
+  call_qfminim(x, maxnorm, stockmax, flag, fptr, args, fn, "default qfminim on simple_input with maxnorm 10");
+
+  x = gp_read_file("simple_input");
+  maxnorm = stoi(10); 
+  flag = 3;
+  fptr = (long)&simple_filter; 
+  args = mkvec(stoi(3));
+  stockmax = fn = NULL;
+  call_qfminim(x, maxnorm, stockmax, flag, fptr, args, fn, "qfminim on simple_input with maxnorm 10, filtered by simple_filter with modulus 3");
+
+  x = gp_read_file("simple_input");
+  maxnorm = stoi(10); 
+  flag = 4;
+  fptr = (long)&simple_filter;
+  args = mkvec(stoi(3));
+  fn = gp_read_str("simple_result"); 
+  stockmax = NULL;
+  call_qfminim(x, maxnorm, stockmax, flag, fptr, args, fn, "qfminim on simple_input with maxnorm 10, filtered by simple_filter with modulus 3");
+
+  x = gp_read_file("leech_lattice");
+  flag = 4; 
+  fn = gp_read_str("leech_result_all");
+  maxnorm = stockmax = args = NULL;
+  fptr = 0; 
+  call_qfminim(x, maxnorm, stockmax, flag, fptr, args, fn, "qfminim on leech_lattice to file");
+
+  x = gp_read_file("leech_lattice");
+  flag = 4;
+  fptr = (long)&silly_filter; 
+  fn = gp_read_str("leech_result_silly");
+  maxnorm = stockmax = args = NULL;
+  call_qfminim(x, maxnorm, stockmax, flag, fptr, args, fn, "qfminim on leech_lattice to file with silly filter");
+
+  x = gp_read_file("leech_lattice");
+  flag = 3;
+  fptr = (long)&silly_filter; 
+  maxnorm = stockmax = args = fn = NULL;
+  call_qfminim(x, maxnorm, stockmax, flag, fptr, args, fn, "qfminim on leech_lattice with silly filter");
   
   pari_close();
   return 0;

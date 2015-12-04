@@ -1130,7 +1130,6 @@ forqfvec0(GEN a, GEN BORNE, GEN code)
 static GEN
 minim0_dolll(GEN a, GEN BORNE, GEN STOCKMAX, long flag, long dolll)
 {
-  pari_printf("minim0_dolll: I'm okay\n"); 
   GEN x, u, r, L, gnorme, invp, V;
   long n = lg(a), i, j, k, s, maxrank, sBORNE;
   pari_sp av = avma, av1;
@@ -1162,7 +1161,6 @@ minim0_dolll(GEN a, GEN BORNE, GEN STOCKMAX, long flag, long dolll)
     if (maxrank < 0)
       pari_err_TYPE("minim0 [negative number of vectors]",STOCKMAX);
   }
-  pari_printf("minim0_dolll after b, m checks: I'm okay\n"); 
 
   L = V = invp = NULL; /* gcc -Wall */
   switch(flag)
@@ -1412,7 +1410,7 @@ cp_vec_to_mat(GEN M, GEN v, long col_idx)
 
 // filter: list of vectors, list of args -> length of filtered list
 static GEN
-minim0_dolll_filter(GEN a, GEN BORNE, GEN STOCKMAX, long flag, long dolll, long filter, GEN args)
+minim0_dolll_filter(GEN a, GEN BORNE, GEN STOCKMAX, long flag, long dolll, long filter, GEN args, GEN filename)
 {
   GEN x, u, r, L, gnorme, invp, V;
   long n = lg(a), i, j, k, s, maxrank, sBORNE;
@@ -1421,7 +1419,6 @@ minim0_dolll_filter(GEN a, GEN BORNE, GEN STOCKMAX, long flag, long dolll, long 
   const double eps = 1e-10;
   int stockall = 0;
   struct qfvec qv;
-  char* filename = NULL; 
   typedef long (*filter_t)(GEN, GEN, long);
   GEN M;
   long M_idx, M_size; 
@@ -1438,13 +1435,14 @@ minim0_dolll_filter(GEN a, GEN BORNE, GEN STOCKMAX, long flag, long dolll, long 
   if (!STOCKMAX)
   {
     stockall = 1;
-    maxrank = 200;
+    maxrank = M_size = 200;
   }
   else
   {
     STOCKMAX = gfloor(STOCKMAX);
     if (typ(STOCKMAX) != t_INT) pari_err_TYPE("minim0",STOCKMAX);
     maxrank = itos(STOCKMAX);
+    M_size = maxrank; 
     if (maxrank < 0)
       pari_err_TYPE("minim0 [negative number of vectors]",STOCKMAX);
   }
@@ -1501,17 +1499,25 @@ minim0_dolll_filter(GEN a, GEN BORNE, GEN STOCKMAX, long flag, long dolll, long 
     maxnorm = 0.;
   BOUND = sBORNE * (1 + eps);
   if ((long)BOUND != sBORNE) pari_err_PREC( "qfminim");
-  M_size = maxrank; 
 
   switch(flag)
   {
     case min_ALL:
       L = new_chunk(1+maxrank);
       break;
+    case min_FILTER:
+      // build M (on pari stack) and L (on pari heap)
+      M_idx = 0;
+      M = zeromat(n, M_size);
+      maxrank = 0; 
+      L = gclone(zeromat(n,maxrank)); 
+      break; 
     case min_TOFILE:
+      M_idx = 0;
+      M = zeromat(n, M_size);
       // change output stream to file
-      filename = GENtostr(gel(args,1)); 
-      switchout(filename); 
+      const char* fn = GENtostr(filename); 
+      switchout(fn);
       break;
     case min_PERF:
       avma = av1;
@@ -1520,7 +1526,6 @@ minim0_dolll_filter(GEN a, GEN BORNE, GEN STOCKMAX, long flag, long dolll, long 
       V = cgetg(1+maxrank, t_VECSMALL);
   }
 
-  M_idx = 1; 
   s = 0; av1 = avma;
   k = n; y[n] = z[n] = 0;
   x[n] = (long)sqrt(BOUND/v[n]);
@@ -1578,83 +1583,75 @@ minim0_dolll_filter(GEN a, GEN BORNE, GEN STOCKMAX, long flag, long dolll, long 
           long maxranknew = maxrank << 1;
           GEN Lnew = new_chunk(1 + maxranknew);
           for (i=1; i<=maxrank; i++) Lnew[i] = L[i];
-          L = Lnew; maxrank = maxranknew; // mx: what happen to old L's memory
+          L = Lnew; maxrank = maxranknew; 
         }
         if (s<=maxrank) gel(L,s) = leafcopy(x);
         break;
 
       case min_FILTER: 
-      {
-        // build M
-        if (M_idx == 0)
-        {
-          M = zeromat(n, M_size);
-          av_FILTER = avma; 
-        }
+        if (M_idx >= M_size)
+          pari_err(e_MISC, "minim0 min_FILTER M_idx >= M_size");
+      
+        // populate M
+        gel(M,++M_idx) = vecsmall_to_col(x); 
 
-        // filter and write to file buffer in chunk
-        if (M_idx > M_size) 
+        // filter in chunk
+        if (M_idx == M_size) 
         {
           if (dolll)
             for (M_idx = 1; M_idx <= M_size; M_idx++)
-              gel(M,M_idx) = ZM_zc_mul(u,x);
+              gel(M,M_idx) = ZM_ZC_mul(u,gel(M,M_idx));
           
+          // apply filter
           long filtered_size = ((filter_t)filter)(M, args, M_size);
-          
-          // on the very top of stack
-          GEN filtered_vecs = gcopy_lg(M, filtered_size);
-          // garbage collect - will not affect filtered_vecs
-          avma = av_FILTER; 
 
-          if (s+filtered_size > maxrank && stockall) // extend L
+          // if need to store new vectors, reallocate L on the heap
+          if (filtered_size > 0)
           {
-            // L can be at most M_size longer to avoid overlapping
-            // DOESNT WORK :(
-            long maxranknew = maxrank + M_size; 
-            GEN Lnew = new_chunk(1 + maxranknew);
-            for (i=1; i<=maxrank; i++) Lnew[i] = L[i];
-            L = Lnew; maxrank = maxranknew;
-            av_FILTER = avma; 
+            long maxranknew = maxrank + filtered_size;
+            GEN Lnew = zeromat(n,maxranknew);
+            // copy over what is already in L
+            for (i=1; i<=maxrank; i++)
+              gel(Lnew,i) = gcopy(gel(L,i));
+            // copy over new vectors
+            for (i=1; i<=filtered_size; i++)
+              gel(Lnew,i+maxrank) = gcopy(gel(M,i));
+            // free old L
+            gunclone(L);
+            L = gclone(Lnew);
+            maxrank = maxranknew; 
           }
-          
-          for(i = 1; i <= filtered_size; i++) 
-            gel(L,++s) = leafcopy(gel(filtered_vecs,i));
 
-          // rebuild M
+          // unwind stack and rebuild M
+          avma = av1; 
           M = zeromat(n, M_size);
           M_idx = 0;
         }
+        break;
+        
+      case min_TOFILE:
+        if (M_idx >= M_size)
+          pari_err(e_MISC, "minim0 min_TOFILE M_idx >= M_size");
 
         // populate M
-        gel(M,++M_idx) = x; 
-      }
-        break;        
-
-      case min_TOFILE:
-      {
-        // build M
-        if (M_idx == 1) 
-          M = zeromat(n, M_size);
+        gel(M,++M_idx) = vecsmall_to_col(x); 
 
         // filter and write to file buffer in chunk
-        if (M_idx == M_size+1) 
+        if (M_idx == M_size) 
         {
-          long filtered_size = ((filter_t)filter)(M, args, M_size); 
-          for(M_idx = 1; M_idx <= filtered_size; M_idx++) 
+          if (dolll)
+            for (M_idx = 1; M_idx <= M_size; M_idx++)
+              gel(M,M_idx) = ZM_ZC_mul(u,gel(M,M_idx));
+          long tofile_size = M_size; 
+          if (filter) 
+            tofile_size = ((filter_t)filter)(M, args, M_size);
+          for(M_idx = 1; M_idx <= tofile_size; M_idx++) 
             pari_printf("%Ps\n", gel(M,M_idx));
-
           // rebuild M
           avma = av1; 
           M = zeromat(n, M_size);
-          
-          M_idx = 1;
+          M_idx = 0;
         }
-        // here we expect assert(M_idx <= M_size); to be true
-
-        // populate M
-        gel(M,M_idx) = ZM_zc_mul(u,x); 
-        M_idx++;
-      }
         break;
 
       case min_VECSMALL:
@@ -1709,19 +1706,36 @@ minim0_dolll_filter(GEN a, GEN BORNE, GEN STOCKMAX, long flag, long dolll, long 
     case min_PERF:
       if (DEBUGLEVEL>1) { err_printf("\n"); err_flush(); }
       avma = av; return stoi(s);
+    case min_FILTER:
+    {
+      if (dolll)
+        for (i = 1; i <= M_idx; i++)
+          gel(M,i) = ZM_ZC_mul(u,gel(M,i));
+      // apply last filter
+      long filtered_size = ((filter_t)filter)(M, args, M_idx);
+      long maxranknew = maxrank + filtered_size; 
+      GEN Lret = zeromat(n,maxranknew); 
+      for (i=1; i<=maxrank; i++)
+        gel(Lret,i) = gcopy(gel(L,i));
+      for (i=1; i<=filtered_size; i++)
+        gel(Lret,i+maxrank) = gcopy(gel(M,i));
+      gunclone(L);
+      r = (maxnorm >= 0) ? roundr(dbltor(maxnorm)): stoi(sBORNE);
+      return gerepilecopy(av, mkvec3(stoi(s<<1), r, Lret));
+    }
     case min_TOFILE:
     {
-      // apply last filter and save to file; M's effective number of columns is M_idx-1
-      long filtered_size = ((filter_t)filter)(M, args, M_idx-1);
-      for(M_idx = 1; M_idx <= filtered_size; M_idx++) 
+      if (dolll)
+        for (i = 1; i <= M_idx; i++)
+          gel(M,i) = ZM_ZC_mul(u,gel(M,i));
+      long tofile_size = M_idx;
+      if (filter)
+        tofile_size = ((filter_t)filter)(M, args, M_idx);
+      for(M_idx = 1; M_idx <= tofile_size; M_idx++) 
         pari_printf("%Ps\n", gel(M,M_idx));
-
       // change output stream back to stdout
       switchout(NULL);
-      pari_free(filename);
-      
       r = (maxnorm >= 0) ? roundr(dbltor(maxnorm)): stoi(sBORNE);
-
       return gerepilecopy(av, mkvec2(stoi(s<<1), r));
     }
   }
@@ -1737,7 +1751,6 @@ minim0_dolll_filter(GEN a, GEN BORNE, GEN STOCKMAX, long flag, long dolll, long 
 static GEN
 minim0(GEN a, GEN BORNE, GEN STOCKMAX, long flag)
 {
-  pari_printf("minim0: I'm okay\n"); 
   return minim0_dolll(a, BORNE, STOCKMAX, flag, 1);
 }
 
@@ -1746,7 +1759,7 @@ qfrep0(GEN a, GEN borne, long flag)
 { return minim0(a, borne, gen_0, (flag & 1)? min_VECSMALL2: min_VECSMALL); }
 
 GEN
-qfminim0(GEN a, GEN borne, GEN stockmax, long flag, long filter, GEN testarg, long prec)
+qfminim0(GEN a, GEN borne, GEN stockmax, long flag, long filter, GEN args, GEN filename, long prec)
 {
   switch(flag)
   {
@@ -1766,9 +1779,15 @@ qfminim0(GEN a, GEN borne, GEN stockmax, long flag, long filter, GEN testarg, lo
     }
     case 3:
     {
+        pari_printf("Apply filter\n");
+        pari_printf("Return value: [total_num_of_vecs, max_norm, filtered_vecs]\n"); 
+        return minim0_dolll_filter(a,borne,stockmax,min_FILTER,1,filter,args,filename);
+    }
+    case 4:
+    {
         pari_printf("Output to file\n");
-        pari_printf("Return value: [num_of_small_vecs, max_norm]\n"); 
-        return minim0_dolll_filter(a,borne,stockmax,min_TOFILE,1,filter,testarg);
+        pari_printf("Return value: [total_num_of_vecs, max_norm]\n"); 
+        return minim0_dolll_filter(a,borne,stockmax,min_TOFILE,1,filter,args,filename);
     }
     default: pari_err_FLAG("qfminim");
   }

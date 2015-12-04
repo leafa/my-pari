@@ -2005,7 +2005,7 @@ GEN     minim2(GEN a, GEN borne, GEN stockmax);
 GEN     padic_lindep(GEN x);
 GEN     perf(GEN a);
 GEN     qfrep0(GEN a, GEN borne, long flag);
-GEN     qfminim0(GEN a, GEN borne, GEN stockmax, long flag, long filter, GEN testarg, long prec);
+GEN     qfminim0(GEN a, GEN borne, GEN stockmax, long flag, long filter, GEN args, GEN filename, long prec);
 void    cp_vec_to_mat(GEN M, GEN v, long col_idx); 
 GEN     seralgdep(GEN s, long p, long r);
 GEN     zncoppersmith(GEN P0, GEN N, GEN X, GEN B) ;
