@@ -1,0 +1,30 @@
+Steps to use qfminim with filter
+1) configure:
+   ./Configure --prefix={LIBRARY_PATH}
+2) make & install pari:
+   make all && make install
+3) compile filter code (can be in C/C++): 
+   gcc -o filter filter.c -I {LIBRARY_PATH}/include/ -L {LIBRARY_PATH}/lib/ -l pari
+4) execute:
+   ./filter
+
+qfminim Parameters explained in order
+
+1) x
+   square symmetric matrix representing a positive definite quadratic form
+2) b
+   upper bound for returning vectors; default to the minimal vector norm
+3) m
+   return at most m vectors
+4) flag
+   new flag values:
+   3: apply filter on returning vectors
+   4: print output to file; if a valid filter function pointer is available, then it will be applied
+5) filter
+   function pointer
+6) filter_arg
+   a vector of values needed by the filter
+7) file_name
+   name of the file to print to, defaults to "qfminim_result" if unspecified
+8) p
+   precision, just use DEFAULTPREC
